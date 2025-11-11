@@ -1,8 +1,13 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Optional
 
-app = FastAPI()
+from schemas import ContactMessage
+from database import create_document, db
+
+app = FastAPI(title="Digital Solutions Company API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,11 +19,57 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    return {"message": "Hello from FastAPI Backend!"}
+    return {"message": "Digital Solutions Backend Running"}
 
 @app.get("/api/hello")
 def hello():
     return {"message": "Hello from the backend API!"}
+
+@app.get("/api/services")
+def get_services():
+    """Return a list of services offered (static for demo)."""
+    services = [
+        {
+            "title": "Custom Software Development",
+            "description": "Web, mobile, and desktop applications tailored to your business.",
+            "icon": "Code"
+        },
+        {
+            "title": "Cloud & DevOps",
+            "description": "Scalable infrastructure, CI/CD, containers, and observability.",
+            "icon": "Cloud"
+        },
+        {
+            "title": "UI/UX Design",
+            "description": "Human-centered design for delightful digital experiences.",
+            "icon": "Palette"
+        },
+        {
+            "title": "AI & Data Solutions",
+            "description": "Machine learning, analytics, and automation to unlock insights.",
+            "icon": "Brain"
+        },
+        {
+            "title": "E-commerce Platforms",
+            "description": "High-converting storefronts, payments, and product management.",
+            "icon": "ShoppingCart"
+        },
+        {
+            "title": "Maintenance & Support",
+            "description": "SLAs, monitoring, and 24/7 support to keep systems running.",
+            "icon": "Shield"
+        }
+    ]
+    return {"services": services}
+
+@app.post("/api/contact")
+def submit_contact(message: ContactMessage):
+    """Store contact message into the database."""
+    try:
+        inserted_id = create_document("contactmessage", message)
+        return {"status": "success", "id": inserted_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/test")
 def test_database():
@@ -31,37 +82,30 @@ def test_database():
         "connection_status": "Not Connected",
         "collections": []
     }
-    
+
     try:
-        # Try to import database module
-        from database import db
-        
         if db is not None:
             response["database"] = "✅ Available"
             response["database_url"] = "✅ Configured"
             response["database_name"] = db.name if hasattr(db, 'name') else "✅ Connected"
             response["connection_status"] = "Connected"
-            
-            # Try to list collections to verify connectivity
+
             try:
                 collections = db.list_collection_names()
-                response["collections"] = collections[:10]  # Show first 10 collections
+                response["collections"] = collections[:10]
                 response["database"] = "✅ Connected & Working"
             except Exception as e:
                 response["database"] = f"⚠️  Connected but Error: {str(e)[:50]}"
         else:
             response["database"] = "⚠️  Available but not initialized"
-            
-    except ImportError:
-        response["database"] = "❌ Database module not found (run enable-database first)"
+
     except Exception as e:
         response["database"] = f"❌ Error: {str(e)[:50]}"
-    
-    # Check environment variables
+
     import os
     response["database_url"] = "✅ Set" if os.getenv("DATABASE_URL") else "❌ Not Set"
     response["database_name"] = "✅ Set" if os.getenv("DATABASE_NAME") else "❌ Not Set"
-    
+
     return response
 
 
